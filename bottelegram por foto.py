@@ -47,13 +47,18 @@ def criar_botoes_investigacao(url_foto):
 
     yandex_link = f"https://yandex.com/images/search?rpt=imageview&url={foto_enc}"
     google_link = f"https://lens.google.com/uploadbyurl?url={foto_enc}"
+    bing_link = f"https://www.bing.com/images/search?q=imgurl:{foto_enc}&view=detailv2&iss=sbi"
+    tineye_link = f"https://tineye.com/search?url={foto_enc}"
 
     keyboard = [
-        [InlineKeyboardButton("🔗 PERFIL (Yandex)", url=yandex_link)],
-        [InlineKeyboardButton("🔎 GOOGLE LENS", url=google_link)]
+        [InlineKeyboardButton("🔎 Google Lens", url=google_link)],
+        [InlineKeyboardButton("🖼️ Yandex", url=yandex_link)],
+        [InlineKeyboardButton("🔍 Bing Visual Search", url=bing_link)],
+        [InlineKeyboardButton("🧭 TinEye", url=tineye_link)]
     ]
 
     return InlineKeyboardMarkup(keyboard)
+
 
 # ---------- HISTÓRICO ----------
 async def historico(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -131,3 +136,4 @@ if __name__ == "__main__":
 
         print("🚀 Bot rodando...")
         app.run_polling()
+
