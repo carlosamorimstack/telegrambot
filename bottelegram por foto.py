@@ -1,139 +1,95 @@
-import os
-import json
-import logging
-import urllib.parse
-import io
-from datetime import datetime
-from PIL import Image
-import imagehash
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
+import time
+import requests
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-MEU_ID = 8542481045
-DB_FILE = "db.json"
+print("Bot iniciado...")
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+TOKEN = "SEU_TOKEN_AQUI"
+CHAT_ID = "SEU_CHAT_ID_AQUI"
 
-# ---------- BANCO ----------
-def carregar_db():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r") as f:
-            return json.load(f)
-    return {}
+def enviar_telegram(msg):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": msg}
+    requests.post(url, data=data)
 
-def salvar_db(db):
-    with open(DB_FILE, "w") as f:
-        json.dump(db, f)
+options = Options()
+options.add_argument("--headless")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
 
-# ---------- HASH ----------
-def gerar_hash_da_foto(foto_bytes):
-    try:
-        img = Image.open(io.BytesIO(foto_bytes))
-        return imagehash.phash(img)
-    except:
-        return None
+service = Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service, options=options)
 
-def encontrar_similar(novo_hash, db, limite=5):
-    for hash_str in db:
-        hash_banco = imagehash.hex_to_hash(hash_str)
-        if (novo_hash - hash_banco) <= limite:
-            return hash_str
-    return None
+wait = WebDriverWait(driver, 30)
 
-# ---------- BOTÕES ----------
-def criar_botoes_investigacao(url_foto):
-    foto_enc = urllib.parse.quote_plus(url_foto)
+while True:
+    print("Verificando vagas...")
 
-    yandex_link = f"https://yandex.com/images/search?rpt=imageview&url={foto_enc}"
-    google_link = f"https://lens.google.com/uploadbyurl?url={foto_enc}"
-    bing_link = f"https://www.bing.com/images/search?q=imgurl:{foto_enc}&view=detailv2&iss=sbi"
-    tineye_link = f"https://tineye.com/search?url={foto_enc}"
+    driver.get("https://seati.segov.ma.gov.br/procon/agendamento/")
 
-    keyboard = [
-        [InlineKeyboardButton("🔎 Google Lens", url=google_link)],
-        [InlineKeyboardButton("🖼️ Yandex", url=yandex_link)],
-        [InlineKeyboardButton("🔍 Bing Visual Search", url=bing_link)],
-        [InlineKeyboardButton("🧭 TinEye", url=tineye_link)]
-    ]
+    wait.until(lambda d: len(d.find_elements(By.TAG_NAME, "select")) >= 2)
+    time.sleep(2)
 
-    return InlineKeyboardMarkup(keyboard)
+    selects = driver.find_elements(By.TAG_NAME, "select")
 
+    cidade = Select(selects[0])
+    for opt in cidade.options:
+        if "Alto Alegre" in opt.text:
+            cidade.select_by_visible_text(opt.text)
+            break
 
-# ---------- HISTÓRICO ----------
-async def historico(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != MEU_ID:
-        return
+    time.sleep(3)
 
-    db = carregar_db()
+    selects = driver.find_elements(By.TAG_NAME, "select")
+    servico = Select(selects[1])
 
-    if not db:
-        await update.message.reply_text("Sem histórico ainda.")
-        return
+    for opt in servico.options:
+        if "RG Nacional" in opt.text or "CIN" in opt.text:
+            servico.select_by_visible_text(opt.text)
+            break
 
-    texto = "📊 Histórico:\n\n"
+    time.sleep(3)
 
-    for h, dados in list(db.items())[-10:]:
-        texto += f"Foto: {dados['contagem']} vezes\n"
-        texto += f"Última vez: {dados['data']}\n\n"
+    campo_data = wait.until(
+        lambda d: d.find_element(By.CSS_SELECTOR, "input[placeholder='dd/mm/aaaa']")
+    )
 
-    await update.message.reply_text(texto)
+    driver.execute_script("arguments[0].removeAttribute('readonly');", campo_data)
+    campo_data.click()
 
-# ---------- FOTO ----------
-async def analisar_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != MEU_ID:
-        return
+    time.sleep(3)
 
-    msg_status = await update.message.reply_text("🔍 Buscando...")
+    dias = driver.find_elements(
+        By.CSS_SELECTOR,
+        ".ui-datepicker-calendar td:not(.ui-datepicker-unselectable) a"
+    )
 
-    try:
-        foto = update.message.photo[-1]
-        arquivo = await foto.get_file()
-        foto_bytes = await arquivo.download_as_bytearray()
-        url_publica = arquivo.file_path
+    if len(dias) > 0:
 
-        hash_atual = gerar_hash_da_foto(foto_bytes)
-        db = carregar_db()
+        for dia in dias:
+            try:
+                driver.execute_script("arguments[0].click();", dia)
+                time.sleep(3)
 
-        hash_str = str(hash_atual)
-        hash_existente = encontrar_similar(hash_atual, db)
+                horarios = driver.find_elements(
+                    By.CSS_SELECTOR,
+                    ".horarios div, .agenda div"
+                )
 
-        agora = datetime.now().strftime("%d/%m %H:%M")
+                if len(horarios) > 0:
+                    print("Horário disponível!")
 
-        if hash_existente:
-            db[hash_existente]["contagem"] += 1
-            db[hash_existente]["data"] = agora
-            status_txt = f"⚠️ FOTO REPETIDA\nDetectada {db[hash_existente]['contagem']} vezes."
-        else:
-            db[hash_str] = {
-                "contagem": 1,
-                "data": agora
-            }
-            status_txt = "✅ FOTO NOVA"
+                    enviar_telegram("🚨 VAGA DISPONÍVEL PARA RG!")
 
-        salvar_db(db)
+                    break
 
-        await msg_status.delete()
+            except:
+                pass
 
-        await update.message.reply_text(
-            f"{status_txt}\n\nResultados:",
-            reply_markup=criar_botoes_investigacao(url_publica)
-        )
-
-    except Exception as e:
-        logging.error(e)
-        await update.message.reply_text("Erro ao processar imagem.")
-
-# ---------- MAIN ----------
-if __name__ == "__main__":
-    if not TOKEN:
-        print("Configure TELEGRAM_TOKEN!")
-    else:
-        app = ApplicationBuilder().token(TOKEN).build()
-
-        app.add_handler(MessageHandler(filters.PHOTO, analisar_foto))
-        app.add_handler(CommandHandler("historico", historico))
-
-        print("🚀 Bot rodando...")
-        app.run_polling()
-
+    print("Nova verificação em 1 minuto...\n")
+    time.sleep(60)
