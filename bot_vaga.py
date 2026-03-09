@@ -9,8 +9,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 print("Bot iniciado...")
 
-TOKEN = "SEU_TOKEN_AQUI"
-CHAT_ID = "SEU_CHAT_ID_AQUI"
+TOKEN = "8408406926:AAHRnvnxNJyHA4d9C_8oZ-K6kpDXOJrNnJM"
+CHAT_ID = "8542481045"
 
 ultima_notificacao = None
 
@@ -144,3 +144,4 @@ while True:
         wait = WebDriverWait(driver, 30)
 
         time.sleep(10)
+
