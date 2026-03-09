@@ -12,8 +12,6 @@ print("Bot iniciado...")
 TOKEN = "8408406926:AAHRnvnxNJyHA4d9C_8oZ-K6kpDXOJrNnJM"
 CHAT_ID = "8542481045"
 
-ultima_notificacao = None
-
 def enviar_telegram(msg):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     data = {"chat_id": CHAT_ID, "text": msg}
@@ -144,4 +142,5 @@ while True:
         wait = WebDriverWait(driver, 30)
 
         time.sleep(10)
+
 
